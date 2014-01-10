@@ -20,19 +20,25 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.AbsListView;
+import android.widget.AbsListView.OnScrollListener;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.ViewFlipper;
 
+
 public class MainActivity extends Activity {
 	TextView title;
 	TextView release;
 	
+	private int addmore = 0;
+	private int webpage = 1;
+	private int webpagesearch = 1;
 	private String searchurl;
 	private static String key = "3ju33k3tweekjjkvcfbw6h9j";
-	private static String url = "http://api.rottentomatoes.com/api/public/v1.0/lists/movies/in_theaters.json?page_limit=20&page=1&country=us&apikey=" + key;
+	private String url;
 	private static final String TAG_TITLE = "title";
 	private static final String TAG_RELEASE = "theater";
 	private static final String TAG_YEAR = "year";
@@ -40,8 +46,11 @@ public class MainActivity extends Activity {
 	private float init;
 	private int mode = 0;
 	private int searched = 0;
+	private int page = 0;
 	
-	int movienum = 20;
+	private int movienum = 20;
+	private int totalmovie = 0;
+	private int totalmoviesearch = 0;
 	
 	JSONArray js = null;
 	String total;
@@ -98,11 +107,28 @@ public class MainActivity extends Activity {
     	System.out.println(text);
     	text = text.replaceAll("\\s+","\\+");
     	System.out.println(text);
-    	searchurl = "http://api.rottentomatoes.com/api/public/v1.0/movies.json?q=" + text + "&page_limit=20&page=1&apikey=" + key;
+    	searchurl = "http://api.rottentomatoes.com/api/public/v1.0/movies.json?q=" + text + "&page_limit=20&page=" + webpagesearch + "&apikey=" + key;
     	searched = 1;
+    	webpagesearch = 1;
     	new JSONParse().execute();
     }
     
+    private void searchmore(int i){
+    	 addmore = 1;
+    	 if ( i == 1 && (((webpage + 1) * 20)) < (totalmovie + 20)){
+    		 System.out.println("load more all");
+    		 webpage ++;
+    		 System.out.println(webpage);
+    		 new JSONParse().execute();
+    		 addmore = 0;
+    	 }
+    	 else {
+    		 if (((webpagesearch + 1) * 20) < (totalmoviesearch + 20)){
+    			 webpagesearch ++;
+    			 search();
+    		 }
+    	 }
+    }
     private class JSONParse extends AsyncTask<String, String, JSONObject> {
     	private ProgressDialog Dialog;
     	@Override
@@ -119,7 +145,8 @@ public class MainActivity extends Activity {
     		JSONParser jParser = new JSONParser();
     		JSONObject json;
     		if (searched == 0){
-    			json = jParser.getJSONFromUrl(url);
+    			json = jParser.getJSONFromUrl("http://api.rottentomatoes.com/api/public/v1.0/lists/movies/in_theaters.json?page_limit=20&page=" + webpage + "&country=us&apikey=" + key);
+    			System.out.println("http://api.rottentomatoes.com/api/public/v1.0/lists/movies/in_theaters.json?page_limit=20&page=" + webpage + "&country=us&apikey=" + key);
     		}
     		else json = jParser.getJSONFromUrl(searchurl);
     		return json;
@@ -129,6 +156,16 @@ public class MainActivity extends Activity {
     		Dialog.dismiss();
     		String date;
     		try { 
+    			String num = json.getString("total");
+    			if (searched == 0){
+    				totalmovie = Integer.parseInt(num);
+    				System.out.println(totalmovie);
+    			}
+    			else {
+    				totalmoviesearch = totalmovie = Integer.parseInt(num);
+    				System.out.println(totalmoviesearch);
+    			}
+    			
     			js = json.getJSONArray("movies");
     			for(int i = 0; i < movienum; i++){
     				JSONObject temp = js.getJSONObject(i);
@@ -170,19 +207,25 @@ public class MainActivity extends Activity {
     		float fin = touchevent.getX();
     		if (init > fin){
     			if (flipper.getDisplayedChild() == 1){
-    				break;
+    				searchmore(0);
     			}
-    			flipper.setInAnimation(this, R.anim.in_right);
-                flipper.setOutAnimation(this, R.anim.out_left);
-    			flipper.showNext();
+    			else {
+    				flipper.setInAnimation(this, R.anim.in_right);
+    				flipper.setOutAnimation(this, R.anim.out_left);
+    				flipper.showNext();
+    				page = 1;
+    			}
     		}
     		else {
     			if (flipper.getDisplayedChild() == 0){
-    				break;
+    				searchmore(1);
     			}
-    			flipper.setInAnimation(this, R.anim.in_left);
-                flipper.setOutAnimation(this, R.anim.out_right);
-    			flipper.showPrevious();
+    			else {
+	    				flipper.setInAnimation(this, R.anim.in_left);
+	                flipper.setOutAnimation(this, R.anim.out_right);
+	                flipper.showPrevious();
+	                page = 0;
+    			}
     		}
     		break;
     	}
@@ -191,15 +234,15 @@ public class MainActivity extends Activity {
     
     private class DownloadImageTask extends AsyncTask<String, Void, ArrayList<Bitmap>> {
     	private ImageView bmImage;
-    	//private ProgressDialog Dialog;
+    	private ProgressDialog Dialog;
     	
     	@Override
     	protected void onPreExecute(){
-    		//Dialog = new ProgressDialog(MainActivity.this);
-    		//Dialog.setMessage("Downloading images ...");
-    		//Dialog.setIndeterminate(false);
-    		//Dialog.setCancelable(true);
-    		//Dialog.show();
+    		Dialog = new ProgressDialog(MainActivity.this);
+    		Dialog.setMessage("Downloading images ...");
+    		Dialog.setIndeterminate(false);
+    		Dialog.setCancelable(true);
+    		Dialog.show();
     	}
     	
     	@Override
@@ -235,15 +278,24 @@ public class MainActivity extends Activity {
     	}
     	
     	protected void onPostExecute(ArrayList<Bitmap> bit){
-    		//Dialog.dismiss();
+    		Dialog.dismiss();
 			System.out.println("flagggg" + bit.size());
-			rowItemsSearch.clear();
+			if (addmore == 0){
+				rowItemsSearch.clear();
+				System.out.println("removed");
+			}
+			else {
+		   		 addmore = 0;
+			}
 			if (searched == 0){
 				for (int i = 0; i < bit.size(); i++){
 					RowItem item = new RowItem(movies.get(i), dates.get(i), bit.get(i), 0);
 					rowItems.add(item);
 				}
-				adapter.notifyDataSetChanged();			
+				adapter.notifyDataSetChanged();	
+				movies.clear();
+				dates.clear();
+				images.clear();
 			}
 			else {
 				System.out.println("bitnumber = " + bit.size());
